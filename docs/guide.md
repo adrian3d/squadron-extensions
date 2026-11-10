@@ -187,6 +187,7 @@ An `Agent` has `id`, `name`, `project` and `dir`, the folder the agent works in 
 | `agent.done` | yes | `{}`. The agent finished its turn. |
 | `agent.waiting` | yes | `{ "waiting": … }`. The agent waits for the user. |
 | `panel.message` | the agent of the panel | `{ "panel": "<id>", "message": … }`. A panel called `squadron.send`. |
+| `timer` | none | `{}`. The delay given to `host::set_timer` is over. API 1.1. |
 
 ### Host functions
 
@@ -201,6 +202,9 @@ An `Agent` has `id`, `name`, `project` and `dir`, the folder the agent works in 
 | `host::exec(program, args, dir)` | Runs a program listed in `permissions.exec`, without a shell. `dir` defaults to the home folder. Returns `code`, `stdout` and `stderr`. |
 | `host::fetch(request)` | Sends an HTTPS request to a host listed in `permissions.network`. See [Secrets and network](#secrets-and-network). |
 | `host::panel_post(panel, message)` | Sends a JSON message to one of the extension's open panels. |
+| `host::agents()` | The agents open in Squadron, archived ones aside. Needs `agents: ["read"]`. API 1.1. |
+| `host::archive_agent(agent)` | Archives an agent, as the user would. Refused while it works, waits for the user, is pinned, remote or shown on screen: try again later. Needs `agents: ["archive"]`. API 1.1. |
+| `host::set_timer(seconds)` | Sends the event `timer` after `seconds`, 10 at least, and cancels the one pending. A timer does not survive a reload or a restart: set it again on `started`. API 1.1. |
 
 The WebAssembly has no access to files, the network or environment variables other than through these functions.
 
@@ -273,13 +277,14 @@ A tool with a `command` receives each secret that is set as an environment varia
 ## Permissions and approval
 
 ```json
-"permissions": { "exec": ["git"], "network": ["api.github.com"] }
+"permissions": { "exec": ["git"], "network": ["api.github.com"], "agents": ["read", "archive"] }
 ```
 
 - `exec`: program names that `host::exec` may run, with any arguments.
 - `network`: exact host names that `host::fetch` may reach.
+- `agents`: `read` lets `host::agents` list the open agents, `archive` lets `host::archive_agent` archive them. API 1.1.
 
-When an extension arrives or changes, Squadron shows the user what it asks for: the programs of `exec`, the hosts of `network`, every `terminal.run` command and every tool `command`. Until the user allows them, its buttons ask first, its tools stay hidden from agents, `host::exec` and `host::fetch` fail. Any new or changed command or host asks again.
+When an extension arrives or changes, Squadron shows the user what it asks for: the programs of `exec`, the hosts of `network`, the access to `agents`, every `terminal.run` command and every tool `command`. Until the user allows them, its buttons ask first, its tools stay hidden from agents, `host::exec` and `host::fetch` fail. Any new or changed command or host asks again.
 
 Allowed commands run with the user's rights. Ask only for what you need, and say why in your description.
 
@@ -292,13 +297,14 @@ Allowed commands run with the user's rights. Ask only for what you need, and say
 | State | 1 MB. |
 | `host::exec`, tool commands | 120 s; tool commands return the last 30,000 characters. |
 | `host::fetch` | 30 s, 8 MB of response. |
+| `host::set_timer` | 10 s at least. |
 | Answer to a click or a tool | 150 s. |
 | Manifest | 256 KB. |
 | Published archive | 50 MB, 2,000 files. |
 
 An extension that crashes or passes a limit is restarted with a fresh instance, keeping its state, and its error shows in Settings › Extensions.
 
-An extension built against a newer API than the installed Squadron fails to load. Keep the API version you build against in step with the Squadron versions you support.
+An extension built against a newer API than the installed Squadron fails to load: one that calls a function marked API 1.1 needs a Squadron that serves it. An extension built against an older API keeps working. Keep the API version you build against in step with the Squadron versions you support.
 
 ## Test and debug
 
